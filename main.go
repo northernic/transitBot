@@ -166,8 +166,8 @@ func handleCmd(message *tgbotapi.Message) {
 		// 创建内联键盘
 		inlineKeyboard := tgbotapi.NewInlineKeyboardMarkup(
 			tgbotapi.NewInlineKeyboardRow(
-				tgbotapi.NewInlineKeyboardButtonData("错误上报", "report_error_1"),
-				tgbotapi.NewInlineKeyboardButtonData("错误处理确认", "check_error"),
+				tgbotapi.NewInlineKeyboardButtonData("错误上报", "错误上报"),
+				tgbotapi.NewInlineKeyboardButtonData("错误处理确认", "错误处理确认"),
 			),
 			//tgbotapi.NewInlineKeyboardRow(
 			//	tgbotapi.NewInlineKeyboardButtonData("选项3", "option3"),
@@ -228,13 +228,13 @@ func handleMessage(message *tgbotapi.Message) {
 		return
 	}
 	// 处理用户的文本输入，可以根据需要进行逻辑处理
-	reply := "收到您的输入：" + message.Text
-
-	msg := tgbotapi.NewMessage(message.Chat.ID, reply)
-	_, err := bot.Send(msg)
-	if err != nil {
-		log.Println(err)
-	}
+	//reply := "收到您的输入：" + message.Text
+	//
+	//msg := tgbotapi.NewMessage(message.Chat.ID, reply)
+	//_, err := bot.Send(msg)
+	//if err != nil {
+	//	log.Println(err)
+	//}
 
 }
 
@@ -254,7 +254,7 @@ func handleCallback(callback *tgbotapi.CallbackQuery) {
 	state.Uid = callback.From.ID
 
 	switch callback.Data {
-	case "report_error_1":
+	case "错误上报":
 		// 生成选项一的下一层内联键盘
 		nextLevelInlineKeyboard := tgbotapi.NewInlineKeyboardMarkup(
 			tgbotapi.NewInlineKeyboardRow(
@@ -273,13 +273,16 @@ func handleCallback(callback *tgbotapi.CallbackQuery) {
 			log.Println(err)
 		}
 
-	case "check_error":
+	case "错误处理确认":
 		// 错误已处理回复
 		// 生成选项一的下一层内联键盘
 		nextLevelInlineKeyboard := tgbotapi.NewInlineKeyboardMarkup(
 			tgbotapi.NewInlineKeyboardRow(
 				//tgbotapi.NewInlineKeyboardButtonData("盘口", "盘口"),
 				tgbotapi.NewInlineKeyboardButtonData("test1", "test1"),
+				tgbotapi.NewInlineKeyboardButtonData("1群", "1群"),
+				tgbotapi.NewInlineKeyboardButtonData("2群", "1群"),
+				tgbotapi.NewInlineKeyboardButtonData("3群", "3群"),
 			),
 		)
 		reply := "选择群："
@@ -300,7 +303,19 @@ func handleCallback(callback *tgbotapi.CallbackQuery) {
 		for k, _ := range fromGroups {
 			if k == "test1" {
 				//给本群
-				sendMsg(callback.Message.Chat.ID, "已转发")
+				sendMsg(callback.Message.Chat.ID, "已通知")
+				//给错误接受群
+				sendMsg(Conf.FromGroups["test1"], "错误已处理")
+				break
+			}
+		}
+	case "1群":
+		//处理对内联键盘回复的消息
+		fromGroups := Conf.FromGroups
+		for k, _ := range fromGroups {
+			if k == "test1" {
+				//给本群
+				sendMsg(callback.Message.Chat.ID, "已通知")
 				//给错误接受群
 				sendMsg(Conf.FromGroups["test1"], "错误已处理")
 				break
