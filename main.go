@@ -259,7 +259,7 @@ func handleCallback(callback *tgbotapi.CallbackQuery) {
 		// 生成选项一的下一层内联键盘
 		nextLevelInlineKeyboard := tgbotapi.NewInlineKeyboardMarkup(
 			tgbotapi.NewInlineKeyboardRow(
-				tgbotapi.NewInlineKeyboardButtonData("601", "601"),
+				tgbotapi.NewInlineKeyboardButtonData("601", "601"), // 错误码后续在这里更新，并增加case的处理
 			),
 		)
 		// 更新原始消息的内联键盘为下一层内联键盘
@@ -295,7 +295,6 @@ func handleCallback(callback *tgbotapi.CallbackQuery) {
 		}
 	case "601":
 		state.ErrorCode = "601"
-		// 处理选项一-1的操作
 		reply := "输入错误域名："
 		sendMsg(callback.Message.Chat.ID, reply)
 	case "test1":
