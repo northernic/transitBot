@@ -161,6 +161,7 @@ func handleCmd(message *tgbotapi.Message) {
 		sendMsg(message.Chat.ID, "groupID: "+strconv.Itoa(int(message.Chat.ID)))
 	case "myid":
 		sendMsg(message.Chat.ID, "myID: "+strconv.Itoa(message.From.ID))
+
 	case "start":
 		reply := "欢迎使用机器人！请从下面的选项中选择一个操作："
 		// 创建内联键盘
@@ -184,17 +185,17 @@ func handleCmd(message *tgbotapi.Message) {
 		}
 
 	default:
-		cmdlist := []string{
-			"命令列表大全:",
-			"/hello",
-			"/groupID",
-			"/myid",
-			"/start",
-			"/错误上报/{错误域名}",
-			"/错误已处理/{群名称}/{域名}",
-		}
-		text := strings.Join(cmdlist, "\n")
-		sendMsg(message.Chat.ID, text)
+		//cmdlist := []string{
+		//	"命令列表大全:",
+		//	"/hello",
+		//	"/groupID",
+		//	"/myid",
+		//	"/start",
+		//	"/错误上报/{错误域名}",
+		//	"/错误已处理/{群名称}/{域名}",
+		//}
+		//text := strings.Join(cmdlist, "\n")
+		//sendMsg(message.Chat.ID, text)
 	}
 }
 
