@@ -4,11 +4,10 @@ import (
 	"fmt"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
 	"github.com/sirupsen/logrus"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 	"io/ioutil"
 	"os"
 	"reflect"
-	"strconv"
 	"strings"
 )
 
@@ -129,9 +128,15 @@ func startBot() {
 	// 处理接收到的更新
 	for update := range updates {
 		if update.CallbackQuery != nil {
+			if update.CallbackQuery.From.IsBot {
+				continue
+			}
 			//处理回调
 			handleCallback(update.CallbackQuery)
 		} else if update.Message != nil {
+			if update.Message.From.IsBot {
+				continue
+			}
 			if update.Message.IsCommand() {
 				//处理命令
 				handleCmd(update.Message)
@@ -155,33 +160,55 @@ func startBot() {
 func handleCmd(message *tgbotapi.Message) {
 	cmd := strings.ToLower(message.Command())
 	switch cmd {
-	case "hello":
-		sendMsg(message.Chat.ID, "hello,world!")
-	case "groupid":
-		sendMsg(message.Chat.ID, "groupID: "+strconv.Itoa(int(message.Chat.ID)))
-	case "myid":
-		sendMsg(message.Chat.ID, "myID: "+strconv.Itoa(message.From.ID))
-
 	case "start":
-		reply := "欢迎使用机器人！请从下面的选项中选择一个操作："
-		// 创建内联键盘
-		inlineKeyboard := tgbotapi.NewInlineKeyboardMarkup(
-			tgbotapi.NewInlineKeyboardRow(
-				tgbotapi.NewInlineKeyboardButtonData("错误上报", "错误上报"),
-				tgbotapi.NewInlineKeyboardButtonData("错误处理确认", "错误处理确认"),
-			),
-			//tgbotapi.NewInlineKeyboardRow(
-			//	tgbotapi.NewInlineKeyboardButtonData("选项3", "option3"),
-			//	tgbotapi.NewInlineKeyboardButtonData("选项4", "option4"),
-			//),
-		)
-		// 将键盘添加到回复消息中
-		msg := tgbotapi.NewMessage(message.Chat.ID, reply)
-		msg.ReplyMarkup = inlineKeyboard
-
-		_, err := bot.Send(msg)
-		if err != nil {
-			log.Println(err)
+		groupid := message.Chat.ID
+		fromGroupids := Conf.FromGroups
+		handleGroups := Conf.HandleGroups
+		sign := false
+		for _, v := range fromGroupids {
+			if groupid == v {
+				reply := "欢迎使用机器人！请从下面的选项中选择一个操作："
+				// 创建内联键盘
+				inlineKeyboard := tgbotapi.NewInlineKeyboardMarkup(
+					tgbotapi.NewInlineKeyboardRow(
+						tgbotapi.NewInlineKeyboardButtonData("错误上报", "错误上报"),
+						//tgbotapi.NewInlineKeyboardButtonData("错误处理确认", "错误处理确认"),
+					),
+				)
+				// 将键盘添加到回复消息中
+				msg := tgbotapi.NewMessage(message.Chat.ID, reply)
+				msg.ReplyMarkup = inlineKeyboard
+				_, err := bot.Send(msg)
+				if err != nil {
+					log.Println(err)
+				}
+				sign = true
+			}
+		}
+		if sign {
+			break
+		}
+		for _, v := range handleGroups {
+			if groupid == v {
+				reply := "欢迎使用机器人！请从下面的选项中选择一个操作："
+				// 创建内联键盘
+				inlineKeyboard := tgbotapi.NewInlineKeyboardMarkup(
+					tgbotapi.NewInlineKeyboardRow(
+						//tgbotapi.NewInlineKeyboardButtonData("错误上报", "错误上报"),
+						tgbotapi.NewInlineKeyboardButtonData("错误处理确认", "错误处理确认"),
+					),
+				)
+				// 将键盘添加到回复消息中
+				msg := tgbotapi.NewMessage(message.Chat.ID, reply)
+				msg.ReplyMarkup = inlineKeyboard
+				_, err := bot.Send(msg)
+				if err != nil {
+					log.Println(err)
+				}
+			}
+		}
+		if sign {
+			break
 		}
 
 	default:
@@ -204,25 +231,26 @@ func handleMessage(message *tgbotapi.Message) {
 	chatID := message.Chat.ID
 	// 获取用户状态
 	state, ok := userStates[chatID]
-
 	if ok {
-		diff := message.MessageID - state.LastCallbackMsgID
-		if diff > 0 && diff < 6 && message.From.ID == state.Uid {
-		}
-		//处理对内联键盘回复的消息
-		fromGroups := Conf.FromGroups
-		for k, v := range fromGroups {
-			if v == message.Chat.ID {
-				//给本群
-				sendMsg(v, "错误已提交")
-				//给错误接受群
-				sendMsg(Conf.HandleGroups["域名处理群"], "错误码："+state.ErrorCode+" 错误信息: "+message.Text+"来自："+k)
-				// 清除用户状态
-				delete(userStates, chatID)
-				break
+		if message.From.ID == state.Uid {
+			//处理对内联键盘回复的消息
+			fromGroups := Conf.FromGroups
+			for k, v := range fromGroups {
+				if v == message.Chat.ID {
+					if message.Text == "" {
+						break
+					}
+					//给本群
+					sendMsg(v, "错误已提交")
+					//给错误接受群
+					sendMsg(Conf.HandleGroups["域名处理群"], "错误码："+state.ErrorCode+" 错误ip信息: "+message.Text+"  来自："+k)
+					// 清除用户状态
+					delete(userStates, chatID)
+					break
+				}
 			}
+			return
 		}
-		return
 
 	}
 	if message.Text == "" {
@@ -254,6 +282,25 @@ func handleCallback(callback *tgbotapi.CallbackQuery) {
 	state.LastCallbackData = callback.Data
 	state.Uid = callback.From.ID
 
+	if callback.Data != "" {
+		//处理配置群
+		fromGroups := Conf.FromGroups
+		for k, _ := range fromGroups {
+			if k == callback.Data {
+				//通知之后，终止内联键盘
+				reply := "--------已通知-" + k + "-------"
+				editMsgText := tgbotapi.NewEditMessageText(callback.Message.Chat.ID, callback.Message.MessageID, reply)
+				_, err := bot.Send(editMsgText)
+				if err != nil {
+					log.Println(err)
+				}
+				//给错误接受群
+				sendMsg(Conf.FromGroups[k], "错误已处理")
+				break
+			}
+		}
+	}
+
 	switch callback.Data {
 	case "错误上报":
 		// 生成选项一的下一层内联键盘
@@ -276,16 +323,7 @@ func handleCallback(callback *tgbotapi.CallbackQuery) {
 
 	case "错误处理确认":
 		// 错误已处理回复
-		// 生成选项一的下一层内联键盘
-		nextLevelInlineKeyboard := tgbotapi.NewInlineKeyboardMarkup(
-			tgbotapi.NewInlineKeyboardRow(
-				//tgbotapi.NewInlineKeyboardButtonData("盘口", "盘口"),
-				tgbotapi.NewInlineKeyboardButtonData("test1", "test1"),
-				tgbotapi.NewInlineKeyboardButtonData("1群", "1群"),
-				tgbotapi.NewInlineKeyboardButtonData("2群", "1群"),
-				tgbotapi.NewInlineKeyboardButtonData("3群", "3群"),
-			),
-		)
+		nextLevelInlineKeyboard := packKeyboard(Conf.FromGroups)
 		reply := "选择群："
 		editMsgText := tgbotapi.NewEditMessageText(callback.Message.Chat.ID, callback.Message.MessageID, reply)
 		editMsgText.ReplyMarkup = &nextLevelInlineKeyboard // 设置新的内联键盘
@@ -295,64 +333,27 @@ func handleCallback(callback *tgbotapi.CallbackQuery) {
 		}
 	case "601":
 		state.ErrorCode = "601"
-		reply := "输入错误域名："
+		reply := "请输入错误ip："
 		sendMsg(callback.Message.Chat.ID, reply)
-	case "test1":
-		//处理对内联键盘回复的消息
-		fromGroups := Conf.FromGroups
-		for k, _ := range fromGroups {
-			if k == "test1" {
-				//给本群
-				sendMsg(callback.Message.Chat.ID, "已通知")
-				//给错误接受群
-				sendMsg(Conf.FromGroups["test1"], "错误已处理")
-				break
-			}
-		}
-	case "1群":
-		//处理对内联键盘回复的消息
-		fromGroups := Conf.FromGroups
-		for k, _ := range fromGroups {
-			if k == "test1" {
-				//给本群
-				sendMsg(callback.Message.Chat.ID, "已通知")
-				//给错误接受群
-				sendMsg(Conf.FromGroups["test1"], "错误已处理")
-				break
-			}
-		}
 	default:
 		// 处理未知的回调查询数据
 	}
 }
 
-// 每个update单独处理
-//func processUpdate(update *tgbotapi.Update) {
-//	var msg tgbotapi.MessageConfig
-//	upmsg := update.Message
-//	gid := upmsg.Chat.ID
-//	uid := upmsg.From.ID
-//	replyText := findKey(gid, upmsg.Text)
-//	if replyText == "delete" {
-//		_, _ = bot.DeleteMessage(api.NewDeleteMessage(gid, upmsg.MessageID))
-//	} else if strings.HasPrefix(replyText, "ban") {
-//		_, _ = bot.DeleteMessage(api.NewDeleteMessage(gid, upmsg.MessageID))
-//		banMember(gid, uid, -1)
-//	} else if strings.HasPrefix(replyText, "kick") {
-//		_, _ = bot.DeleteMessage(api.NewDeleteMessage(gid, upmsg.MessageID))
-//		kickMember(gid, uid)
-//	} else if strings.HasPrefix(replyText, "photo:") {
-//		sendPhoto(gid, replyText[6:])
-//	} else if strings.HasPrefix(replyText, "gif:") {
-//		sendGif(gid, replyText[4:])
-//	} else if strings.HasPrefix(replyText, "video:") {
-//		sendVideo(gid, replyText[6:])
-//	} else if strings.HasPrefix(replyText, "file:") {
-//		sendFile(gid, replyText[5:])
-//	} else if replyText != "" {
-//		msg = api.NewMessage(gid, replyText)
-//		msg.DisableWebPagePreview = true
-//		msg.ReplyToMessageID = upmsg.MessageID
-//		sendMessage(msg)
-//	}
-//}
+func packKeyboard(fromGroups map[string]int64) tgbotapi.InlineKeyboardMarkup {
+	nextLevelInlineKeyboard := tgbotapi.NewInlineKeyboardMarkup()
+	row := []tgbotapi.InlineKeyboardButton{}
+	for k := range fromGroups {
+		button := tgbotapi.NewInlineKeyboardButtonData(k, k)
+		row = append(row, button)
+		if len(row) == 3 {
+			nextLevelInlineKeyboard.InlineKeyboard = append(nextLevelInlineKeyboard.InlineKeyboard, tgbotapi.NewInlineKeyboardRow(row...))
+			row = []tgbotapi.InlineKeyboardButton{}
+		}
+	}
+	// 如果最后一行只有一个按钮，将其添加到内联键盘
+	if len(row) == 1 {
+		nextLevelInlineKeyboard.InlineKeyboard = append(nextLevelInlineKeyboard.InlineKeyboard, tgbotapi.NewInlineKeyboardRow(row...))
+	}
+	return nextLevelInlineKeyboard
+}
